@@ -532,6 +532,32 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const mix = (c1, c2, t) => { const a = hex(c1), b = hex(c2); return "rgb(" + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",") + ")"; };
 
+/* =====================================================================
+   ANSWER LOGGING -> Google Sheet
+   Paste your Google Apps Script "Web app" URL between the quotes below.
+   Leave it as is and nothing is sent anywhere.
+   ===================================================================== */
+const LOG_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE";
+function track(event, detail) {
+  if (!LOG_URL || LOG_URL.indexOf("PASTE_") === 0) return;
+  try {
+    const ua = navigator.userAgent;
+    fetch(LOG_URL, {
+      method: "POST", mode: "no-cors", keepalive: true,
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ event: event, detail: detail || "", device: /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "Desktop" })
+    });
+  } catch (e) { /* never break the page because of logging */ }
+}
+track("Opened the site");
+/* log the first time each section is reached */
+if ("IntersectionObserver" in window) {
+  const seen = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { track("Reached section", e.target.id); seen.unobserve(e.target); }
+  }), { threshold: 0.5 });
+  $$("main > section").forEach(sec => seen.observe(sec));
+}
+
 /* shared mood: scroll + forgiveness change the weather */
 const mood = { rain: 1, hearts: 0.1, warm: 0, happy: false };
 
@@ -766,11 +792,12 @@ onScroll();
 
   function start() {
     resize(); items = []; floaters = []; setScore(0); spawn = 0.3; px = tx = W / 2;
+    track("Game 1 started");
     overlay.hidden = true; running = true; last = performance.now();
     requestAnimationFrame(loop);
   }
   function win() {
-    running = false; draw();
+    running = false; draw(); track("Game 1 won");
     title.textContent = "Congratulations! 🎉";
     text.textContent = "You have successfully taught Fentse how to communicate. 👏😭";
     startBtn.textContent = "Play again";
@@ -804,6 +831,7 @@ onScroll();
       b.className = "opt"; b.type = "button";
       b.innerHTML = "<b>" + "ABC"[i] + "</b><span></span>"; b.lastChild.textContent = o.t;
       b.addEventListener("click", () => {
+        track("Quiz Q" + (idx + 1), "Picked " + "ABC"[i] + ": " + o.t + (i === q.right ? " (correct)" : " (wrong)"));
         fb.className = "feedback pop"; fb.innerHTML = "";
         const big = document.createElement("span"); big.className = "big";
         const joke = document.createElement("span"); joke.className = "joke2"; joke.textContent = o.r;
@@ -855,7 +883,7 @@ function floatEmoji(x, y, ch) {
   const btn = $("#sorryBtn"), box = $("#sorryBox"), count = $("#sorryN"), next = $("#sorryNext"), card = $("#sorryCard");
   let n = 0;
   btn.addEventListener("click", e => {
-    n++; count.textContent = n;
+    n++; count.textContent = n; track("Sorry button", "Press #" + n);
     const S = CONTENT.sorries;
     box.textContent = n <= S.length ? S[n - 1] : CONTENT.sorryDone;
     box.classList.remove("pop"); void box.offsetWidth; box.classList.add("pop");
@@ -904,7 +932,8 @@ function floatEmoji(x, y, ch) {
   no.addEventListener("click", () => {
     if (vanishing) return;
     noCount++;
-    say(randomMsg());
+    const shown = randomMsg(); say(shown);
+    track("Pressed NO", "Attempt #" + noCount + " - " + shown);
     moveNo();
     /* NO gets smaller, YES gets a little bigger */
     const scale = noCount >= 9 ? 0.5 : Math.max(0.55, 1 - noCount * 0.06);
@@ -918,6 +947,7 @@ function floatEmoji(x, y, ch) {
   });
 
   yes.addEventListener("click", () => {
+    track("Pressed YES", "After " + noCount + " NO attempts");
     state.forgiven = true; mood.happy = true; mood.rain = 0; mood.hearts = 1; mood.warm = 1;
     sec.classList.add("happy");
     setSky(1); setMeter(100);
@@ -933,6 +963,7 @@ function floatEmoji(x, y, ch) {
   }
 
   $("#textMe").addEventListener("click", () => {
+    track("Pressed 'Okay, now text me'");
     const r = $("#textReply"); r.textContent = "Good. That's all I wanted. ❤️"; r.classList.remove("pop"); void r.offsetWidth; r.classList.add("pop");
     if (!reduceMotion) heartBurst();
   });
